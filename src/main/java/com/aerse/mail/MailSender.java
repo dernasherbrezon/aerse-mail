@@ -1,0 +1,285 @@
+package com.aerse.mail;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.PrintStream;
+import java.io.UnsupportedEncodingException;
+import java.net.ConnectException;
+import java.security.GeneralSecurityException;
+import java.security.KeyFactory;
+import java.security.interfaces.RSAPrivateKey;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
+import java.util.List;
+import java.util.Properties;
+
+import javax.mail.Message.RecipientType;
+import javax.mail.MessagingException;
+import javax.mail.Session;
+import javax.mail.Transport;
+import javax.mail.internet.InternetAddress;
+import javax.mail.internet.MimeMessage;
+import javax.naming.NamingException;
+import javax.naming.directory.Attribute;
+import javax.naming.directory.Attributes;
+import javax.naming.directory.InitialDirContext;
+import javax.xml.bind.DatatypeConverter;
+
+import net.markenwerk.utils.mail.dkim.Canonicalization;
+import net.markenwerk.utils.mail.dkim.DkimMessage;
+import net.markenwerk.utils.mail.dkim.DkimSigner;
+import net.markenwerk.utils.mail.dkim.SigningAlgorithm;
+
+import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
+
+/**
+ * IMailSender implementation. Spring-friendly. Here is sample standalone usage:
+ * 
+ * <pre>
+ * {
+ * 	&#064;code
+ * 	MailSender sender = new MailSender();
+ * 	sender.setSigningDomain(&quot;example.com&quot;);
+ * 	sender.setDkimPrivateKeyLocation(&quot;example.com.pem&quot;);
+ * 	sender.setFromEmail(&quot;postmaster@example.com&quot;);
+ * 	sender.setFromName(&quot;PostMaster&quot;);
+ * 	sender.setConnectionTimeoutMillis(1000);
+ * 	sender.setDkimSelector(&quot;mail&quot;);
+ * 
+ * 	sender.start();
+ * 
+ * 	MailMessage message = new MailMessage();
+ * 	message.setTo(&quot;admin@example.com&quot;);
+ * 	message.setSubject(&quot;This is test&quot;);
+ * 	message.setText(&quot;This is test body&quot;);
+ * 	message.setHtml(false);
+ * 
+ * 	sender.send(message);
+ * }
+ * </pre>
+ * 
+ *
+ */
+public class MailSender implements IMailSender {
+
+	private final static Logger LOG = Logger.getLogger(MailSender.class);
+	private final static String[] MX_RECORD = new String[] { "MX" };
+	private InitialDirContext iDirC;
+
+	// parameters for dkim
+	private String dkimPrivateKeyLocation;
+	private String signingDomain;
+	private String dkimSelector;
+
+	private String fromEmail;
+	private String fromName;
+
+	private long connectionTimeoutMillis;
+
+	private InternetAddress from;
+	private RSAPrivateKey dkimPrivateKey;
+
+	public void start() throws IOException, GeneralSecurityException, NamingException {
+		if (fromEmail == null) {
+			throw new IllegalStateException("from email should be specified");
+		}
+		if (dkimPrivateKeyLocation == null) {
+			throw new IllegalStateException("dkim private key location should be specified");
+		}
+		if (signingDomain == null) {
+			throw new IllegalStateException("signing domain should be specified");
+		}
+		if (dkimSelector == null) {
+			throw new IllegalArgumentException("dkim selector should be specified");
+		}
+		iDirC = new InitialDirContext();
+		from = new InternetAddress(fromEmail, fromName);
+		dkimPrivateKey = loadPrivateKey(dkimPrivateKeyLocation);
+	}
+
+	@Override
+	public void send(MailMessage mailMessage) throws NamingException, MessagingException {
+		List<MXRecord> mx = getMX(mailMessage.getTo().substring(mailMessage.getTo().indexOf('@') + 1));
+		if (LOG.isDebugEnabled()) {
+			LOG.debug("MX records detected: " + mx);
+		}
+		for (int i = 0; i < mx.size(); i++) {
+			String cur = mx.get(i).getValue();
+			Properties props = new Properties();
+			props.setProperty("mail.smtp.host", cur);
+			props.setProperty("mail.smtp.localhost", signingDomain);
+			props.setProperty("mail.smtp.starttls.enable", "true");
+			props.setProperty("mail.smtp.ssl.trust", "*");
+			String timeoutMillisStr = String.valueOf(connectionTimeoutMillis);
+			props.setProperty("mail.smtp.timeout", timeoutMillisStr);
+			props.setProperty("mail.smtps.timeout", timeoutMillisStr);
+			props.setProperty("mail.smtp.connectiontimeout", timeoutMillisStr);
+			props.setProperty("mail.smtps.connectiontimeout", timeoutMillisStr);
+
+			Session session = Session.getInstance(props);
+			if (LOG.isDebugEnabled()) {
+				try {
+					session.setDebugOut(new PrintStream(new Log4jPrintStream(LOG, Level.DEBUG), false, "UTF-8"));
+					session.setDebug(true);
+				} catch (UnsupportedEncodingException e) {
+					throw new RuntimeException(e);
+				}
+			}
+
+			MimeMessage message = new MimeMessage(session);
+			message.setFrom(from);
+			message.setRecipient(RecipientType.TO, new InternetAddress(mailMessage.getTo()));
+			message.setSubject(mailMessage.getSubject());
+			if (mailMessage.isHtml()) {
+				message.setContent(mailMessage.getText(), "text/html; charset=utf-8");
+			} else {
+				message.setContent(mailMessage.getText(), "text/plain; charset=utf-8");
+			}
+			message.setSentDate(new Date());
+			MimeMessage dkimSignedMessage = dkimSignMessage(message);
+			try {
+				Transport.send(dkimSignedMessage);
+				return;
+			} catch (MessagingException e) {
+				if (!hasRootCause(e, ConnectException.class) || i == mx.size() - 1) {
+					throw e;
+				}
+				LOG.info("mx is not available: " + cur);
+			}
+		}
+	}
+
+	private List<MXRecord> getMX(String domainName) throws NamingException {
+		// see: RFC 974 - Mail routing and the domain system
+		// see: RFC 1034 - Domain names - concepts and facilities
+		// see: http://java.sun.com/j2se/1.5.0/docs/guide/jndi/jndi-dns.html
+		// - DNS Service Provider for the Java Naming Directory Interface (JNDI)
+
+		// get the MX records from the default DNS directory service provider
+		// NamingException thrown if no DNS record found for domainName
+		Attributes attributes = iDirC.getAttributes("dns:/" + domainName, MX_RECORD);
+		// attributeMX is an attribute ('list') of the Mail Exchange(MX)
+		// Resource Records(RR)
+		Attribute attributeMX = attributes.get("MX");
+
+		// if there are no MX RRs then default to domainName (see: RFC 974)
+		if (attributeMX == null) {
+			return Collections.singletonList(new MXRecord(0, domainName));
+		}
+
+		// split MX RRs into Preference Values(pvhn[0]) and Host Names(pvhn[1])
+		List<MXRecord> result = new ArrayList<MXRecord>(attributeMX.size());
+		for (int i = 0; i < attributeMX.size(); i++) {
+			String curValue = attributeMX.get(i).toString();
+			int spaceIndex = curValue.indexOf(' ');
+			if (spaceIndex == -1) {
+				if (LOG.isDebugEnabled()) {
+					LOG.debug("invalid mx record: " + curValue);
+				}
+				continue;
+			}
+			String record;
+			if (curValue.charAt(curValue.length() - 1) == '.') {
+				record = curValue.substring(spaceIndex + 1, curValue.length() - 1);
+			} else {
+				record = curValue.substring(spaceIndex + 1);
+			}
+			result.add(new MXRecord(Integer.valueOf(curValue.substring(0, spaceIndex)), record));
+		}
+
+		if (result.size() > 1) {
+			// sort the MX RRs by RR value (lower is preferred)
+			Collections.sort(result, MXRecordComparator.INSTANCE);
+		}
+		return result;
+	}
+
+	private MimeMessage dkimSignMessage(MimeMessage message) throws MessagingException {
+		DkimSigner dkimSigner = new DkimSigner(signingDomain, dkimSelector, dkimPrivateKey);
+		dkimSigner.setIdentity(fromEmail);
+		dkimSigner.setHeaderCanonicalization(Canonicalization.SIMPLE);
+		dkimSigner.setBodyCanonicalization(Canonicalization.RELAXED);
+		dkimSigner.setSigningAlgorithm(SigningAlgorithm.SHA256_WITH_RSA);
+		dkimSigner.setLengthParam(true);
+		dkimSigner.setZParam(false);
+		dkimSigner.setCheckDomainKey(false);
+		return new DkimMessage(message, dkimSigner);
+	}
+
+	private static RSAPrivateKey loadPrivateKey(String location) throws IOException, GeneralSecurityException {
+		RSAPrivateKey key = null;
+		BufferedReader br = null;
+		try {
+			InputStream is = MailSender.class.getClassLoader().getResourceAsStream(location);
+			br = new BufferedReader(new InputStreamReader(is));
+			StringBuilder builder = new StringBuilder();
+			boolean inKey = false;
+			for (String line = br.readLine(); line != null; line = br.readLine()) {
+				if (!inKey) {
+					if (line.startsWith("-----BEGIN ") && line.endsWith(" PRIVATE KEY-----")) {
+						inKey = true;
+					}
+					continue;
+				} else {
+					if (line.startsWith("-----END ") && line.endsWith(" PRIVATE KEY-----")) {
+						inKey = false;
+						break;
+					}
+					builder.append(line);
+				}
+			}
+			//
+			byte[] encoded = DatatypeConverter.parseBase64Binary(builder.toString());
+			PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(encoded);
+			KeyFactory kf = KeyFactory.getInstance("RSA");
+			key = (RSAPrivateKey) kf.generatePrivate(keySpec);
+		} finally {
+			if (br != null) {
+				br.close();
+			}
+		}
+		return key;
+	}
+
+	private static boolean hasRootCause(Throwable e, Class<?> rootCause) {
+		if (rootCause.isInstance(e)) {
+			return true;
+		}
+		if (e.getCause() != null) {
+			boolean result = hasRootCause(e.getCause(), rootCause);
+			if (result) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	public void setSigningDomain(String signingDomain) {
+		this.signingDomain = signingDomain;
+	}
+
+	public void setDkimPrivateKeyLocation(String dkimPrivateKeyLocation) {
+		this.dkimPrivateKeyLocation = dkimPrivateKeyLocation;
+	}
+
+	public void setFromEmail(String fromEmail) {
+		this.fromEmail = fromEmail;
+	}
+
+	public void setFromName(String fromName) {
+		this.fromName = fromName;
+	}
+
+	public void setConnectionTimeoutMillis(long connectionTimeoutMillis) {
+		this.connectionTimeoutMillis = connectionTimeoutMillis;
+	}
+
+	public void setDkimSelector(String dkimSelector) {
+		this.dkimSelector = dkimSelector;
+	}
+}
