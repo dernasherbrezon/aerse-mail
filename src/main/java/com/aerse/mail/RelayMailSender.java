@@ -14,7 +14,8 @@ import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 
 /**
- * Mail sender to send messages through relay-server. Relay server should be SSL based with password-based authentication 
+ * Mail sender to send messages through relay-server. Relay server should be SSL
+ * based with password-based authentication
  *
  */
 public class RelayMailSender implements IMailSender {
@@ -42,6 +43,7 @@ public class RelayMailSender implements IMailSender {
 	@Override
 	public void send(Message message) throws MessagingException {
 		Properties props = new Properties();
+		props.setProperty("mail.transport.protocol", "smtps");
 		props.setProperty("mail.smtps.host", host);
 		props.setProperty("mail.smtps.port", String.valueOf(port));
 		props.setProperty("mail.smtps.user", username);
@@ -65,9 +67,18 @@ public class RelayMailSender implements IMailSender {
 				throw new RuntimeException(e);
 			}
 		}
-
 		message.setFrom(from);
-		Transport.send(message);
+
+		Transport t = null;
+		try {
+			t = session.getTransport();
+			t.connect(host, port, username, password);
+			t.sendMessage(message, message.getAllRecipients());
+		} finally {
+			if (t != null) {
+				t.close();
+			}
+		}
 	}
 
 	public void setConnectionTimeoutMillis(long connectionTimeoutMillis) {

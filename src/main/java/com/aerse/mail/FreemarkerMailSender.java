@@ -21,6 +21,7 @@ import freemarker.template.TemplateExceptionHandler;
 public class FreemarkerMailSender {
 
 	private static final Logger LOG = Logger.getLogger(FreemarkerMailSender.class);
+	//starts with /
 	private String templateClasspathPrefix;
 	private IMailSender mailSender;
 	private boolean enabled;
