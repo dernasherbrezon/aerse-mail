@@ -137,7 +137,7 @@ public class DirectMailSender implements IMailSender {
 			throw new IllegalArgumentException("dkim selector should be specified");
 		}
 		iDirC = new InitialDirContext();
-		from = new InternetAddress(fromEmail, fromName);
+		from = new InternetAddress(fromEmail, fromName, "UTF-8");
 		dkimPrivateKey = loadPrivateKey(dkimPrivateKeyLocation);
 	}
 
