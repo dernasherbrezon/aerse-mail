@@ -273,6 +273,9 @@ public class DirectMailSender implements IMailSender {
 		BufferedReader br = null;
 		try {
 			InputStream is = DirectMailSender.class.getClassLoader().getResourceAsStream(location);
+			if (is == null) {
+				throw new IllegalArgumentException("unable to find key in classpath: " + location);
+			}
 			br = new BufferedReader(new InputStreamReader(is));
 			StringBuilder builder = new StringBuilder();
 			boolean inKey = false;

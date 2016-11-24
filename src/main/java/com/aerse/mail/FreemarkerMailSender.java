@@ -10,7 +10,9 @@ import java.util.concurrent.Executors;
 
 import javax.mail.Message.RecipientType;
 import javax.mail.MessagingException;
+import javax.mail.Session;
 import javax.mail.internet.InternetAddress;
+import javax.mail.internet.MimeMessage;
 
 import org.apache.log4j.Logger;
 
@@ -21,7 +23,7 @@ import freemarker.template.TemplateExceptionHandler;
 public class FreemarkerMailSender {
 
 	private static final Logger LOG = Logger.getLogger(FreemarkerMailSender.class);
-	//starts with /
+	// starts with /
 	private String templateClasspathPrefix;
 	private IMailSender mailSender;
 	private boolean enabled;
@@ -49,7 +51,18 @@ public class FreemarkerMailSender {
 		}
 	}
 
+	public void sendQuietly(final FreemarkerMimeMessage message) {
+		try {
+			send(message);
+		} catch (MessagingException e) {
+			LOG.error("unable to send message", e);
+		}
+	}
+
 	public void send(final FreemarkerMimeMessage message) throws MessagingException {
+		if (message.getTo() == null || message.getTo().isEmpty()) {
+			throw new IllegalArgumentException("\"to\" should be specified");
+		}
 		if (threadpool != null) {
 			threadpool.execute(new Runnable() {
 
@@ -77,7 +90,7 @@ public class FreemarkerMailSender {
 		Calendar calendar = Calendar.getInstance();
 		// string for no-formatting
 		modelToUse.put("currentYear", String.valueOf(calendar.get(Calendar.YEAR)));
-		modelToUse.put("email", ((InternetAddress) message.getRecipients(RecipientType.TO)[0]).getAddress());
+		modelToUse.put("email", message.getTo().get(0));
 		String text;
 		try {
 			Template fTemplate = freemarkerConfig.getTemplate(message.getTemplate());
@@ -91,8 +104,27 @@ public class FreemarkerMailSender {
 			LOG.info("sending message. subject: " + message.getSubject() + " body: " + text);
 			return;
 		}
-		message.setContent(text, "text/html;charset=UTF-8");
-		mailSender.send(message);
+
+		MimeMessage mime = new MimeMessage((Session) null);
+		mime.setSubject(message.getSubject(), "UTF-8");
+		if (message.getBcc() != null) {
+			for (String cur : message.getBcc()) {
+				mime.addRecipient(RecipientType.BCC, new InternetAddress(cur));
+			}
+		}
+		if (message.getCc() != null) {
+			for (String cur : message.getCc()) {
+				mime.addRecipient(RecipientType.CC, new InternetAddress(cur));
+			}
+		}
+		for (String cur : message.getTo()) {
+			mime.addRecipient(RecipientType.TO, new InternetAddress(cur));
+		}
+		mime.setContent(text, "text/html;charset=UTF-8");
+		if (message.getReplyTo() != null) {
+			mime.setReplyTo(new InternetAddress[] { new InternetAddress(message.getReplyTo()) });
+		}
+		mailSender.send(mime);
 	}
 
 	public void setTemplateClasspathPrefix(String templateClasspathPrefix) {

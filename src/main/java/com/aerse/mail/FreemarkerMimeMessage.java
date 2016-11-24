@@ -1,27 +1,85 @@
 package com.aerse.mail;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
-import javax.mail.Session;
-import javax.mail.internet.MimeMessage;
+public class FreemarkerMimeMessage {
 
-public class FreemarkerMimeMessage extends MimeMessage {
+	private Map<Object, Object> model;
+	private String template;
+	private List<String> to;
+	private List<String> cc;
+	private List<String> bcc;
+	private String subject;
+	private String replyTo;
+	
+	public String getReplyTo() {
+		return replyTo;
+	}
+	
+	public void setReplyTo(String replyTo) {
+		this.replyTo = replyTo;
+	}
 
-	private final Map<Object, Object> model;
-	private final String template;
+	public void setTo(String to) {
+		this.to = Collections.singletonList(to);
+	}
 
-	public FreemarkerMimeMessage(Session session, Map<Object, Object> model, String template) {
-		super(session);
+	public void setCc(String cc) {
+		this.cc = Collections.singletonList(cc);
+	}
+
+	public void setBcc(String bcc) {
+		this.bcc = Collections.singletonList(bcc);
+	}
+
+	public Map<Object, Object> getModel() {
+		return model;
+	}
+
+	public void setModel(Map<Object, Object> model) {
 		this.model = model;
-		this.template = template;
 	}
 
 	public String getTemplate() {
 		return template;
 	}
 
-	public Map<Object, Object> getModel() {
-		return model;
+	public void setTemplate(String template) {
+		this.template = template;
+	}
+
+	public List<String> getTo() {
+		return to;
+	}
+
+	public void setTo(List<String> to) {
+		this.to = to;
+	}
+
+	public List<String> getCc() {
+		return cc;
+	}
+
+	public void setCc(List<String> cc) {
+		this.cc = cc;
+	}
+
+	public List<String> getBcc() {
+		return bcc;
+	}
+
+	public void setBcc(List<String> bcc) {
+		this.bcc = bcc;
+	}
+
+	public String getSubject() {
+		return subject;
+	}
+
+	public void setSubject(String subject) {
+		this.subject = subject;
 	}
 
 }
