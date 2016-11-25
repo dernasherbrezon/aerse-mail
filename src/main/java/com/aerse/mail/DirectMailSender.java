@@ -44,7 +44,7 @@ import org.apache.log4j.Logger;
  * <ul>
  * <li>send transactional messages. These are messages sent directly to client.
  * Include: password reset notifications, welcome letters, order notifications
- * &etc</li>
+ * &amp;etc</li>
  * <li>send directly to client's SMTP server. <code>IMailSender</code> analyses
  * MX records. If SMTP server for particular MX record is not available (throws
  * <code>java.net.ConnectException</code>), then next server is used.</li>

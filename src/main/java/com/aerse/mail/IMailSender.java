@@ -12,7 +12,7 @@ public interface IMailSender {
 	 * Send message.
 	 * 
 	 * @param message - message to send
-	 * @throws MessagingException - any other exceptions. For example: user not found, connection exception &etc.
+	 * @throws MessagingException - any other exceptions. For example: user not found, connection exception &amp;etc.
 	 */
 	void send(Message message) throws MessagingException;
 }
