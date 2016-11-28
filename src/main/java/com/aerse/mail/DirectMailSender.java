@@ -21,6 +21,7 @@ import javax.mail.Address;
 import javax.mail.Message;
 import javax.mail.Message.RecipientType;
 import javax.mail.MessagingException;
+import javax.mail.Multipart;
 import javax.mail.Session;
 import javax.mail.Transport;
 import javax.mail.internet.InternetAddress;
@@ -193,7 +194,11 @@ public class DirectMailSender implements IMailSender {
 			message.setSubject(mailMessage.getSubject());
 			message.setReplyTo(mailMessage.getReplyTo());
 			try {
-				message.setContent(mailMessage.getContent(), mailMessage.getContentType());
+				if (mailMessage.getContent() instanceof Multipart) {
+					message.setContent(mailMessage.getContent(), mailMessage.getContentType());
+				} else {
+					message.setDataHandler(mailMessage.getDataHandler());
+				}
 			} catch (IOException e1) {
 				throw new MessagingException("unable to get content", e1);
 			}

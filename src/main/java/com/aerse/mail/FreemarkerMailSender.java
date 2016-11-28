@@ -120,7 +120,7 @@ public class FreemarkerMailSender {
 		for (String cur : message.getTo()) {
 			mime.addRecipient(RecipientType.TO, new InternetAddress(cur));
 		}
-		mime.setContent(text, "text/html;charset=UTF-8");
+		mime.setContent(text, "text/html; charset=UTF-8");
 		if (message.getReplyTo() != null) {
 			mime.setReplyTo(new InternetAddress[] { new InternetAddress(message.getReplyTo()) });
 		}
