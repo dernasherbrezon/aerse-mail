@@ -6,7 +6,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
-import java.net.ConnectException;
+import java.net.InetAddress;
 import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
 import java.security.interfaces.RSAPrivateKey;
@@ -208,12 +208,18 @@ public class DirectMailSender implements IMailSender {
 				Transport.send(dkimSignedMessage);
 				return;
 			} catch (MessagingException e) {
-				if (!hasRootCause(e, ConnectException.class) || i == mx.size() - 1) {
-					throw e;
+				if (!hasRootCause(e, IOException.class) || i == mx.size() - 1) {
+					throw new MessagingException("mx is not available: " + cur, e);
 				}
 				LOG.info("mx is not available: " + cur);
 			}
 		}
+	}
+	
+	public static void main(String[] args) throws Exception {
+		
+		System.out.println(InetAddress.getByName("inmx.rambler.ru"));
+		
 	}
 
 	private List<MXRecord> getMX(String domainName) throws NamingException {
