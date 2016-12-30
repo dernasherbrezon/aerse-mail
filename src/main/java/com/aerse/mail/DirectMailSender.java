@@ -7,6 +7,7 @@ import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
 import java.security.interfaces.RSAPrivateKey;
@@ -215,12 +216,6 @@ public class DirectMailSender implements IMailSender {
 			}
 		}
 	}
-	
-	public static void main(String[] args) throws Exception {
-		
-		System.out.println(InetAddress.getByName("inmx.rambler.ru"));
-		
-	}
 
 	private List<MXRecord> getMX(String domainName) throws NamingException {
 		// see: RFC 974 - Mail routing and the domain system
@@ -257,7 +252,20 @@ public class DirectMailSender implements IMailSender {
 			} else {
 				record = curValue.substring(spaceIndex + 1);
 			}
-			result.add(new MXRecord(Integer.valueOf(curValue.substring(0, spaceIndex)), record));
+			try {
+				InetAddress[] aRecords = InetAddress.getAllByName(record);
+				Integer priority = Integer.valueOf(curValue.substring(0, spaceIndex));
+				for (InetAddress cur : aRecords) {
+					result.add(new MXRecord(priority, cur.getHostAddress()));
+				}
+			} catch (UnknownHostException e) {
+				String message = "unable to resolve host: " + record + " skipping";
+				if (LOG.isDebugEnabled()) {
+					LOG.debug(message, e);
+				} else {
+					LOG.info(message);
+				}
+			}
 		}
 
 		if (result.size() > 1) {
@@ -265,6 +273,12 @@ public class DirectMailSender implements IMailSender {
 			Collections.sort(result, MXRecordComparator.INSTANCE);
 		}
 		return result;
+	}
+
+	public static void main(String[] args) throws Exception {
+		InetAddress[] all = InetAddress.getAllByName("inmx.rambler.ru");
+		// InetAddress[] all = InetAddress.getAllByName("81.19.78.65");
+		System.out.println(all[0].getHostAddress());
 	}
 
 	private MimeMessage dkimSignMessage(MimeMessage message) throws MessagingException {
