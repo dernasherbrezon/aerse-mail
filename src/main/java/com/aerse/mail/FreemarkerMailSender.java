@@ -52,14 +52,20 @@ public class FreemarkerMailSender {
 	}
 
 	public void sendQuietly(final FreemarkerMimeMessage message) {
+		if (message == null) {
+			return;
+		}
 		try {
 			send(message);
 		} catch (MessagingException e) {
-			LOG.error("unable to send message", e);
+			LOG.error("unable to send message: " + message.getTo() + " subject: " + message.getSubject(), e);
 		}
 	}
 
 	public void send(final FreemarkerMimeMessage message) throws MessagingException {
+		if (message == null) {
+			throw new IllegalArgumentException("message cannot be null");
+		}
 		if (message.getTo() == null || message.getTo().isEmpty()) {
 			throw new IllegalArgumentException("\"to\" should be specified");
 		}
@@ -71,7 +77,7 @@ public class FreemarkerMailSender {
 					try {
 						implSend(message);
 					} catch (MessagingException e) {
-						LOG.error("unable to send message", e);
+						LOG.error("unable to send message: " + message.getTo() + " subject: " + message.getSubject(), e);
 					}
 				}
 			});
