@@ -2,7 +2,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.aerse</groupId>
 	<artifactId>mail</artifactId>
-	<version>1.6-SNAPSHOT</version>
+	<version>1.6</version>
 	<url>https://github.com/dernasherbrezon/aerse-mail</url>
 	<name>JavaMail wrapper</name>
 	<description>Simple JavaMail wrapper with freemarker template support</description>
@@ -131,7 +131,7 @@
 		<url>https://github.com/dernasherbrezon/aerse-mail</url>
 		<connection>scm:git:git@github.com:dernasherbrezon/aerse-mail.git</connection>
 		<developerConnection>scm:git:git@github.com:dernasherbrezon/aerse-mail.git</developerConnection>
-    <tag>mail-1.5</tag>
+    <tag>mail-1.6</tag>
   </scm>
 
 	<issueManagement>
