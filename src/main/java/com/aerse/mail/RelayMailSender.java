@@ -10,8 +10,8 @@ import javax.mail.Session;
 import javax.mail.Transport;
 import javax.mail.internet.InternetAddress;
 
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Mail sender to send messages through relay-server. Relay server should be SSL
@@ -20,7 +20,7 @@ import org.apache.log4j.Logger;
  */
 public class RelayMailSender implements IMailSender {
 
-	private static final Logger LOG = Logger.getLogger(RelayMailSender.class);
+	private static final Logger LOG = LoggerFactory.getLogger(RelayMailSender.class);
 
 	private long connectionTimeoutMillis;
 
@@ -60,8 +60,8 @@ public class RelayMailSender implements IMailSender {
 
 		Session session = Session.getInstance(props, auth);
 		if (LOG.isDebugEnabled()) {
-			try {
-				session.setDebugOut(new PrintStream(new Log4jPrintStream(LOG, Level.DEBUG), false, "UTF-8"));
+			try (PrintStream out = new PrintStream(new Log4jPrintStream(LOG), false, "UTF-8")) {
+				session.setDebugOut(out);
 				session.setDebug(true);
 			} catch (UnsupportedEncodingException e) {
 				throw new RuntimeException(e);

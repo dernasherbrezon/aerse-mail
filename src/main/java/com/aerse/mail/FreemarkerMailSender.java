@@ -14,7 +14,8 @@ import javax.mail.Session;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import freemarker.template.Configuration;
 import freemarker.template.Template;
@@ -22,7 +23,7 @@ import freemarker.template.TemplateExceptionHandler;
 
 public class FreemarkerMailSender {
 
-	private static final Logger LOG = Logger.getLogger(FreemarkerMailSender.class);
+	private static final Logger LOG = LoggerFactory.getLogger(FreemarkerMailSender.class);
 	// starts with /
 	private String templateClasspathPrefix;
 	private IMailSender mailSender;
@@ -89,7 +90,7 @@ public class FreemarkerMailSender {
 	private void implSend(FreemarkerMimeMessage message) throws MessagingException {
 		Map<Object, Object> modelToUse;
 		if (message.getModel() == null) {
-			modelToUse = new HashMap<Object, Object>();
+			modelToUse = new HashMap<>();
 		} else {
 			modelToUse = message.getModel();
 		}

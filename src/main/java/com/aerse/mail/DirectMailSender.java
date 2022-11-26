@@ -13,6 +13,7 @@ import java.security.KeyFactory;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -31,15 +32,15 @@ import javax.naming.NamingException;
 import javax.naming.directory.Attribute;
 import javax.naming.directory.Attributes;
 import javax.naming.directory.InitialDirContext;
-import javax.xml.bind.DatatypeConverter;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import net.markenwerk.utils.mail.dkim.Canonicalization;
 import net.markenwerk.utils.mail.dkim.DkimMessage;
 import net.markenwerk.utils.mail.dkim.DkimSigner;
 import net.markenwerk.utils.mail.dkim.SigningAlgorithm;
 
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
 
 /**
  * JavaMail wrapper, that supports the following features:
@@ -108,7 +109,7 @@ import org.apache.log4j.Logger;
  */
 public class DirectMailSender implements IMailSender {
 
-	private final static Logger LOG = Logger.getLogger(DirectMailSender.class);
+	private final static Logger LOG = LoggerFactory.getLogger(DirectMailSender.class);
 	private final static String[] MX_RECORD = new String[] { "MX" };
 	private InitialDirContext iDirC;
 
@@ -181,8 +182,8 @@ public class DirectMailSender implements IMailSender {
 
 			Session session = Session.getInstance(props);
 			if (LOG.isDebugEnabled()) {
-				try {
-					session.setDebugOut(new PrintStream(new Log4jPrintStream(LOG, Level.DEBUG), false, "UTF-8"));
+				try (PrintStream out = new PrintStream(new Log4jPrintStream(LOG), false, "UTF-8")) {
+					session.setDebugOut(out);
 					session.setDebug(true);
 				} catch (UnsupportedEncodingException e) {
 					throw new RuntimeException(e);
@@ -236,7 +237,7 @@ public class DirectMailSender implements IMailSender {
 		}
 
 		// split MX RRs into Preference Values(pvhn[0]) and Host Names(pvhn[1])
-		List<MXRecord> result = new ArrayList<MXRecord>(attributeMX.size());
+		List<MXRecord> result = new ArrayList<>(attributeMX.size());
 		for (int i = 0; i < attributeMX.size(); i++) {
 			String curValue = attributeMX.get(i).toString();
 			int spaceIndex = curValue.indexOf(' ');
@@ -319,7 +320,7 @@ public class DirectMailSender implements IMailSender {
 				}
 			}
 			//
-			byte[] encoded = DatatypeConverter.parseBase64Binary(builder.toString());
+			byte[] encoded = Base64.getDecoder().decode(builder.toString());
 			PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(encoded);
 			KeyFactory kf = KeyFactory.getInstance("RSA");
 			key = (RSAPrivateKey) kf.generatePrivate(keySpec);

@@ -4,19 +4,16 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.regex.Pattern;
 
-import org.apache.log4j.Logger;
-import org.apache.log4j.Priority;
+import org.slf4j.Logger;
 
 class Log4jPrintStream extends OutputStream {
 
 	private final static Pattern CARET = Pattern.compile("\r");
 	private final Logger log;
-	private final Priority priority;
 	private StringBuffer buffer = new StringBuffer();
 
-	Log4jPrintStream(Logger log, Priority priority) {
+	Log4jPrintStream(Logger log) {
 		this.log = log;
-		this.priority = priority;
 	}
 
 	@Override
@@ -42,8 +39,8 @@ class Log4jPrintStream extends OutputStream {
 	@Override
 	public void flush() throws IOException {
 		String message = buffer.toString();
-		if (message.length() != 0) {
-			log.log(priority, message);
+		if (message.length() != 0 && log.isDebugEnabled()) {
+			log.debug(message);
 			buffer = new StringBuffer();
 		}
 	}
